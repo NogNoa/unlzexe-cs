@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-static class Program
+static class Unlzexe
 {
     const int FAILURE = 1;
     const int SUCCESS = 0;
