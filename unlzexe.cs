@@ -97,14 +97,9 @@ static class Unlzexe
     {
         int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
-
         ipath = argv[0];
-        parsepath(ipath, out idx_name, out idx_ext);
-        if(idx_ext >= ipath.Length) ipath = ipath.Substring(0, idx_ext) + ".exe";
-        // if extention was not found. ipath gets a .exe
-        if(tmpfname.Equals(ipath + idx_name, StringComparison.OrdinalIgnoreCase))
+        if (fnamesplt(ipath, tmpfname, true) != SUCCESS)
         {   // ifile name collide with tmp
-            Console.WriteLine($"'{ipath}':bad filename.");
             opath = "";
             ofname = "";
             return FAILURE;
@@ -113,11 +108,8 @@ static class Unlzexe
             opath = ipath;
         else
             opath = argv[1];
-        parsepath(opath, out idx_name, out idx_ext);
-        if(idx_ext >= opath.Length) opath = opath.Substring(0, idx_ext) + ".exe";  //add .exe if no extention
-        if(backup_ext.Equals(opath + idx_ext, StringComparison.OrdinalIgnoreCase))  
+        if (fnamesplt(opath, backup_ext, false) != SUCCESS)
         {   // ofile extention collide with backup
-            Console.WriteLine($"'{opath}':bad filename.");
             ofname = "";
             return FAILURE;
         }
@@ -126,15 +118,14 @@ static class Unlzexe
         return SUCCESS;
     }
 
-    static int fnamesplt(out string path, string compstr)
+    static int fnamesplt(out string path, string compstr, bool incname)
     {
         parsepath(path, out idx_name, out idx_ext);
+        int seperator = incname ? idx_name : idx_ext;
         if(idx_ext >= path.Length) path = path.Substring(0, idx_ext) + ".exe";  //add .exe if no extention found
-        if(compstr.Equals(path + idx_name, StringComparison.OrdinalIgnoreCase))
+        if(compstr.Equals(path + seperator, StringComparison.OrdinalIgnoreCase))
         {   // path collide with compstr
             Console.WriteLine($"'{path}':bad filename.");
-            opath = "";
-            ofname = "";
             return FAILURE;
         }
     }
