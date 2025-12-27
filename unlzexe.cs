@@ -95,10 +95,10 @@ static class Unlzexe
     static int fnamechk(out string ipath, out string opath, out string ofname,
                   int argc, string[] argv)
     {
-        int idx_name, idx_ext;   // seperation points of directory, basename and extention
-                                 // <-- parsepath
+        int oidx_name;   // <-- fnamesplt
+
         ipath = argv[0];
-        if (fnamesplt(ipath, tmpfname, true) != SUCCESS)
+        if (fnamesplt(ipath, tmpfname, true) == FAILURE)
         {   // ifile name collide with tmp
             opath = "";
             ofname = "";
@@ -108,18 +108,22 @@ static class Unlzexe
             opath = ipath;
         else
             opath = argv[1];
-        if (fnamesplt(opath, backup_ext, false) != SUCCESS)
+        oidx_name = fnamesplt(opath, backup_ext, false);
+        if (oidx_name == FAILURE)
         {   // ofile extention collide with backup
             ofname = "";
             return FAILURE;
         }
-        ofname = opath.Substring(idx_name);               // <base>.<ext>
-        opath = opath.Substring(0, idx_name) + tmpfname;  // <directory>\$tmpfil$.exe
+        ofname = opath.Substring(oidx_name);               // <base>.<ext>
+        opath = opath.Substring(0, oidx_name) + tmpfname;  // <directory>\$tmpfil$.exe
         return SUCCESS;
     }
 
     static int fnamesplt(out string path, string compstr, bool incname)
     {
+        int idx_name, idx_ext;   // seperation points of directory, basename and extention
+                                 // <-- parsepath
+
         parsepath(path, out idx_name, out idx_ext);
         int seperator = incname ? idx_name : idx_ext;
         if(idx_ext >= path.Length) path = path.Substring(0, idx_ext) + ".exe";  //add .exe if no extention found
@@ -128,6 +132,7 @@ static class Unlzexe
             Console.WriteLine($"'{path}':bad filename.");
             return FAILURE;
         }
+        return idx_name;
     }
 
 
