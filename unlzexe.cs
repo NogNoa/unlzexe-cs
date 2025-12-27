@@ -13,8 +13,9 @@ static class Unlzexe
     static string tmpfname = "$tmpfil$.exe";
     static string backup_ext = ".olz";
     static string? ipath,             // argv[0] an LZEXE file.
-         opath,   // directory       // argv[1] else =ipath 
-         ofname;  // base.ext
+                                     // path of ifile 
+         opath,   // directory of ofile  // argv[1] else =ipath 
+         ofname;  // new base.ext
                                      // <-- fnamechk
 
     static int Main(string[] argv)
@@ -23,6 +24,7 @@ static class Unlzexe
         Stream ifile, ofile;  // <-- File.Open
         int ver;  // <-- rdhead
         bool rename_sw = false;  //user-defined names for ipath and possibly opath
+                                 // = (argc == 1)
 
         Console.WriteLine("UNLZEXE Ver. 0.6");
         if(argc != 2 && argc != 1)
@@ -93,14 +95,15 @@ static class Unlzexe
     static int fnamechk(out string ipath, out string opath, out string ofname,
                   int argc, string[] argv)
     {
-        int idx_name, idx_ext;   // seperate directory, basename and extention
+        int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
 
         ipath = argv[0];
         parsepath(ipath, out idx_name, out idx_ext);
         if(idx_ext >= ipath.Length) ipath = ipath.Substring(0, idx_ext) + ".exe";
+        // if extention was not found. ipath gets a .exe
         if(tmpfname.Equals(ipath + idx_name, StringComparison.OrdinalIgnoreCase))
-        {
+        {   // ifile name collide with tmp
             Console.WriteLine($"'{ipath}':bad filename.");
             opath = "";
             ofname = "";
@@ -112,8 +115,8 @@ static class Unlzexe
             opath = argv[1];
         parsepath(opath, out idx_name, out idx_ext);
         if(idx_ext >= opath.Length) opath = opath.Substring(0, idx_ext) + ".exe";  //add .exe if no extention
-        if(backup_ext.Equals(opath + idx_ext, StringComparison.OrdinalIgnoreCase))  //opath can't clash with ".olz" (empty base)
-        {
+        if(backup_ext.Equals(opath + idx_ext, StringComparison.OrdinalIgnoreCase))  
+        {   // ofile extention collide with backup
             Console.WriteLine($"'{opath}':bad filename.");
             ofname = "";
             return FAILURE;
@@ -263,9 +266,10 @@ static class Unlzexe
             return FAILURE;
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
         if((ihead[0] != 0x5a4d && ihead[0] != 0x4d5a) ||
-           ihead[0x0d] != 0 || ihead[0x0c] != 0x1c)
+           ihead[0x0d] != 0 || ihead[0x0c] != 0x1c)  //0xd = e_ovno, 0xc = e_lfarlc
             return FAILURE;
         entry = ((long)(ihead[4] + ihead[0x0b]) << 4) + ihead[0x0a];
+        /*entry = (e_cparhdr + e_cs) : e_ip*/
         ifile.Position = entry;
         if(ifile.Read(sigbuf, 0, sigbuf.Length) != sigbuf.Length)
             return FAILURE;
@@ -289,8 +293,9 @@ static class Unlzexe
         int i;
 
         fpos = (long)(ihead[0x0b] + ihead[4]) << 4;		/* goto CS:0000 */
+        /* fpos = e_cs + e_cparthdr */
         ifile.BaseStream.Position = fpos;
-        ifile.Read(inf_buffer, 0, inf_buffer.Length);
+        ifile.Read(inf_buffer, 0, inf_buffer.Length); //lz header
         ohead[0x0a] = inf[0]; 	/* IP */
         ohead[0x0b] = inf[1]; 	/* CS */
         ohead[0x08] = inf[2]; 	/* SP */
