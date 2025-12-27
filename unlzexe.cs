@@ -126,6 +126,19 @@ static class Unlzexe
         return SUCCESS;
     }
 
+    static int fnamesplt(out string path, string compstr)
+    {
+        parsepath(path, out idx_name, out idx_ext);
+        if(idx_ext >= path.Length) path = path.Substring(0, idx_ext) + ".exe";  //add .exe if no extention found
+        if(compstr.Equals(path + idx_name, StringComparison.OrdinalIgnoreCase))
+        {   // path collide with compstr
+            Console.WriteLine($"'{path}':bad filename.");
+            opath = "";
+            ofname = "";
+            return FAILURE;
+        }
+    }
+
 
     static int fnamechg(string ipath, string opath, string ofname, bool rename_sw)
     {
