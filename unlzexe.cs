@@ -96,24 +96,16 @@ static class Unlzexe
                   int argc, string[] argv)
     {
         int oidx_name;   // <-- fnamesplt
-
         ipath = argv[0];
-        if (fnamesplt(ipath, tmpfname, true) == FAILURE)
-        {   // ifile name collide with tmp
-            opath = "";
-            ofname = "";
-            return FAILURE;
-        }
+        opath = "";
+        ofname = "";
+        if (fnamesplt(ipath, tmpfname, true) == FAILURE) {return FAILURE;} 
         if(argc == 1)
             opath = ipath;
         else
             opath = argv[1];
         oidx_name = fnamesplt(opath, backup_ext, false);
-        if (oidx_name == FAILURE)
-        {   // ofile extention collide with backup
-            ofname = "";
-            return FAILURE;
-        }
+        if (oidx_name == FAILURE) {return FAILURE;}
         ofname = opath.Substring(oidx_name);               // <base>.<ext>
         opath = opath.Substring(0, oidx_name) + tmpfname;  // <directory>\$tmpfil$.exe
         return SUCCESS;
@@ -138,14 +130,15 @@ static class Unlzexe
 
     static int fnamechg(string ipath, string opath, string ofname, bool rename_sw)
     {
-        int idx_name, idx_ext;
+        int idx_name, idx_ext;      // <-- parsepath
         string tpath;
 
         if(rename_sw)
         {
-            tpath = ipath;
+            tpath = ipath; //tpath = ipath
             parsepath(tpath, out idx_name, out idx_ext);
-            tpath = tpath.Substring(0, idx_ext) + backup_ext;
+            tpath = tpath.Substring(0, idx_ext) + backup_ext; // tpath = <dir>\<name>.olz
+            //backup ifile and make ipath available
             File.Delete(tpath);
             try
             {
@@ -158,9 +151,10 @@ static class Unlzexe
             }
             Console.WriteLine($"'{ipath}' is renamed to '{tpath}'.");
         }
-        tpath = opath;
+        tpath = opath; //tpath = <dir>\$tmpfil$.exe
         parsepath(tpath, out idx_name, out idx_ext);
-        tpath = tpath.Substring(0, idx_name) + ofname;
+        tpath = tpath.Substring(0, idx_name) + ofname; //tpath = <dir>\$ofname
+        // move ofile to tmpfname
         File.Delete(tpath);
         try
         {
@@ -168,10 +162,10 @@ static class Unlzexe
         } catch
         {
             if(rename_sw)
-            {
-                tpath = ipath;
+            {   //return ifile to its place
+                tpath = ipath; //tpath = ipath
                 parsepath(tpath, out idx_name, out idx_ext);
-                tpath = tpath.Substring(0, idx_ext) + backup_ext;
+                tpath = tpath.Substring(0, idx_ext) + backup_ext; //tpath = <dir>\<name>.olz
                 File.Move(tpath, ipath);
             }
             Console.WriteLine($"can't make '{tpath}'.  unpacked file '{tmpfname}' is remained.");
