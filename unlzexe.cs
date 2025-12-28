@@ -18,8 +18,8 @@ static class Unlzexe
          ofdir,    // directory of ofile
          ofname;  // new base.ext
                                      // <-- fnamechk
-    static string? opath {get=>ofdir + ofname;}
-    static string? tmpfpath {get=>ofdir + tmpfname;}
+    static string opath {get=>ofdir + ofname;}
+    static string tmpfpath {get=>ofdir + tmpfname;}
 
     static int Main(string[] argv)
     {
@@ -98,37 +98,31 @@ static class Unlzexe
     static int fnamechk(out string ipath, out string ofdir, out string ofname,
                   int argc, string[] argv)
     {
-        int oidx_name;   // <-- fnamesplt
-        ipath = argv[0];
-        ofdir = "";
-        string topath = "";
-        ofname = "";
-        if (fnamesplt(ipath, tmpfname, true) == FAILURE) {return FAILURE;} 
-        if(argc == 1)
-            topath = ipath;
-        else
-            topath = argv[1];
-        oidx_name = fnamesplt(topath, backup_ext, false);
-        if (oidx_name == FAILURE) {return FAILURE;}
-        ofname = topath.Substring(oidx_name);               // <base>.<ext>
-        ofdir = topath.Substring(0, oidx_name);
-        return SUCCESS;
-    }
-
-    static int fnamesplt(string path, string compstr, bool incname)
-    {
         int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
-
-        parsepath(path, out idx_name, out idx_ext);
-        int seperator = incname ? idx_name : idx_ext;
-        if(idx_ext >= path.Length) path = path.Substring(0, idx_ext) + ".exe";  //add .exe if no extention found
-        if(compstr.Equals(path + seperator, StringComparison.OrdinalIgnoreCase))
-        {   // path collide with compstr
-            Console.WriteLine($"'{path}':bad filename.");
+        string tpath;
+        ipath = argv[0];
+        ofdir = "";
+        ofname = "";
+        parsepath(ipath, out idx_name, out idx_ext);
+        if(idx_ext >= ipath.Length) ipath = ipath.Substring(0, idx_ext) + ".exe"; //add .exe if no extention
+        if(tmpfname.Equals(ipath + idx_name, StringComparison.OrdinalIgnoreCase))
+        {   Console.WriteLine($"'{ipath}':bad filename.");
+            return FAILURE;
+        } 
+        if(argc == 1)
+            tpath = ipath;
+        else
+            tpath = argv[1];
+        parsepath(tpath, out idx_name, out idx_ext);
+        if(idx_ext >= tpath.Length) tpath = tpath.Substring(0, idx_ext) + ".exe";  //add .exe if no extention
+        if(backup_ext.Equals(tpath + idx_ext, StringComparison.OrdinalIgnoreCase)) 
+        {   Console.WriteLine($"'{tpath}':bad filename.");
             return FAILURE;
         }
-        return idx_name;
+        ofname = tpath.Substring(idx_name);               // <base>.<ext>
+        ofdir = tpath.Substring(0, idx_name);            // <dir>
+        return SUCCESS;
     }
 
 
