@@ -109,12 +109,12 @@ static class Unlzexe
         oidx_name = fnamesplt(opath, backup_ext, false);
         if (oidx_name == FAILURE) {return FAILURE;}
         ofname = opath.Substring(oidx_name);               // <base>.<ext>
-        ofdir = opath.Substring(0, oidx_name)
+        ofdir = opath.Substring(0, oidx_name);
         opath = ofdir + tmpfname;  // <directory>\$tmpfil$.exe
         return SUCCESS;
     }
 
-    static int fnamesplt(out string path, string compstr, bool incname)
+    static int fnamesplt(string path, string compstr, bool incname)
     {
         int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
@@ -135,7 +135,7 @@ static class Unlzexe
     {
         int idx_name, idx_ext;      // <-- parsepath
         string tpath;
-        string opath = ofdir + tmpfname
+        string opath = ofdir + tmpfname;
 
         if(rename_sw)
         {
@@ -397,7 +397,7 @@ static class Unlzexe
     }
 
     /*---------------------*/
-    struct bitstream
+    struct Bitstream
     {
         public BinaryReader fp;
         public ushort buf;
@@ -413,7 +413,7 @@ static class Unlzexe
         int len;
         ushort span;
         long fpos;
-        var bits = default(bitstream);
+        var bits = default(Bitstream);
         int p = 0;
 
         fpos = ((long)ihead[0x0b] - (long)inf[4] + (long)ihead[4]) << 4;
@@ -492,14 +492,14 @@ static class Unlzexe
     /*-------------------------------------------*/
 
     /* get compress information bit by bit */
-    static void initbits(ref bitstream p, BinaryReader filep)
+    static void initbits(ref Bitstream p, BinaryReader filep)
     {
         p.fp = filep;
         p.count = 0x10;
         p.buf = p.fp.ReadUInt16();
     }
 
-    static int getbit(ref bitstream p)
+    static int getbit(ref Bitstream p)
     {
         int b;
         b = p.buf & 1;
