@@ -14,7 +14,8 @@ static class Unlzexe
     static string backup_ext = ".olz";
     static string? ipath,             // argv[0] an LZEXE file.
                                      // path of ifile 
-         opath,   // directory of ofile  // argv[1] else =ipath 
+         ofdir,      // directory of ofile
+         opath,   // ofdir+ofname or ofdir+tmpfname  // argv[1] else =ipath 
          ofname;  // new base.ext
                                      // <-- fnamechk
 
@@ -34,7 +35,7 @@ static class Unlzexe
         }
         if(argc == 1)
             rename_sw = true;
-        if(fnamechk(out ipath, out opath, out ofname, argc, argv) != SUCCESS)
+        if(fnamechk(out ipath, out opath, out ofdir, out ofname, argc, argv) != SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -84,7 +85,7 @@ static class Unlzexe
         wrhead(owriter);
         ofile.Close();
 
-        if(fnamechg(ipath, opath, ofname, rename_sw) != SUCCESS)
+        if(fnamechg(ipath, ofdir, ofname, rename_sw) != SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -92,11 +93,12 @@ static class Unlzexe
     }
 
     /* file name check */
-    static int fnamechk(out string ipath, out string opath, out string ofname,
+    static int fnamechk(out string ipath, out string opath, out string ofdir, out string ofname,
                   int argc, string[] argv)
     {
         int oidx_name;   // <-- fnamesplt
         ipath = argv[0];
+        ofdir = "";
         opath = "";
         ofname = "";
         if (fnamesplt(ipath, tmpfname, true) == FAILURE) {return FAILURE;} 
@@ -107,7 +109,8 @@ static class Unlzexe
         oidx_name = fnamesplt(opath, backup_ext, false);
         if (oidx_name == FAILURE) {return FAILURE;}
         ofname = opath.Substring(oidx_name);               // <base>.<ext>
-        opath = opath.Substring(0, oidx_name) + tmpfname;  // <directory>\$tmpfil$.exe
+        ofdir = opath.Substring(0, oidx_name)
+        opath = ofdir + tmpfname;  // <directory>\$tmpfil$.exe
         return SUCCESS;
     }
 
@@ -128,10 +131,11 @@ static class Unlzexe
     }
 
 
-    static int fnamechg(string ipath, string opath, string ofname, bool rename_sw)
+    static int fnamechg(string ipath, string ofdir, string ofname, bool rename_sw)
     {
         int idx_name, idx_ext;      // <-- parsepath
         string tpath;
+        string opath = ofdir + tmpfname
 
         if(rename_sw)
         {
@@ -151,9 +155,7 @@ static class Unlzexe
             }
             Console.WriteLine($"'{ipath}' is renamed to '{tpath}'.");
         }
-        tpath = opath; //tpath = <dir>\$tmpfil$.exe
-        parsepath(tpath, out idx_name, out idx_ext);
-        tpath = tpath.Substring(0, idx_name) + ofname; //tpath = <dir>\$ofname
+        tpath = ofdir + ofname; //tpath = <dir>\$tmpfil$.exe
         // move ofile to tmpfname
         File.Delete(tpath);
         try
