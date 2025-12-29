@@ -12,16 +12,22 @@ static class Program
 
     static string tmpfname = "$tmpfil$.exe";
     static string backup_ext = ".olz";
-    static string ipath,
-         opath,
-         ofname;
+    static string? ipath,             // argv[0] an LZEXE file.
+                                     // path of ifile 
+                    //opath from argv[1] else =ipath 
+         ofdir,    // directory of ofile
+         ofname;  // new base.ext
+                                     // <-- fnamechk
+    static string opath {get=>ofdir + ofname;}
+    static string tmpfpath {get=>ofdir + tmpfname;}
 
     static int Main(string[] argv)
     {
         var argc = argv.Length;
-        Stream ifile, ofile;
-        int ver;
-        bool rename_sw = false;
+        Stream ifile, ofile;  // <-- File.Open
+        int ver;  // <-- rdhead
+        bool rename_sw = false;  //user-defined names for ipath and possibly opath
+                                 // = (argc == 1)
 
         Console.WriteLine("UNLZEXE Ver. 0.6");
         if(argc != 2 && argc != 1)
@@ -31,7 +37,7 @@ static class Program
         }
         if(argc == 1)
             rename_sw = true;
-        if(fnamechk(out ipath, out opath, out ofname, argc, argv) != SUCCESS)
+        if(fnamechk(out ipath, out ofdir, out ofname, argc, argv) != SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -53,10 +59,10 @@ static class Program
         }
         try
         {
-            ofile = File.Open(opath, FileMode.Create, FileAccess.Write);
+            ofile = File.Open(tmpfpath, FileMode.Create, FileAccess.Write);
         } catch
         {
-            Console.WriteLine($"can't open '{opath}'.");
+            Console.WriteLine($"can't open '{tmpfpath}'.");
             ifile.Close();
             return EXIT_FAILURE;
         }
@@ -67,21 +73,21 @@ static class Program
         {
             ifile.Close();
             ofile.Close();
-            File.Delete(opath);
+            File.Delete(tmpfpath);
             return EXIT_FAILURE;
         }
         if(unpack(ireader, owriter) != SUCCESS)
         {
             ifile.Close();
             ofile.Close();
-            File.Delete(opath);
+            File.Delete(tmpfpath);
             return EXIT_FAILURE;
         }
         ifile.Close();
         wrhead(owriter);
         ofile.Close();
 
-        if(fnamechg(ipath, opath, ofname, rename_sw) != SUCCESS)
+        if(fnamechg(ipath, ofdir, ofname, rename_sw) != SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -89,49 +95,51 @@ static class Program
     }
 
     /* file name check */
-    static int fnamechk(out string ipath, out string opath, out string ofname,
+    static int fnamechk(out string ipath, out string ofdir, out string ofname,
                   int argc, string[] argv)
     {
-        int idx_name, idx_ext;
-
+        int idx_name, idx_ext;   // seperation points of directory, basename and extention
+                                 // <-- parsepath
+        string tpath;
+        string ifname;
         ipath = argv[0];
+        ofdir = "";
+        ofname = "";
         parsepath(ipath, out idx_name, out idx_ext);
-        if(idx_ext >= ipath.Length) ipath = ipath.Substring(0, idx_ext) + ".exe";
-        if(tmpfname.Equals(ipath + idx_name, StringComparison.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"'{ipath}':bad filename.");
-            opath = null;
-            ofname = null;
+        ifname = ipath.Substring(0, idx_ext)
+        if(idx_ext >= ipath.Length) ipath = ifname + ".exe"; //add .exe if no extention
+        if(tmpfname.Equals(ifname, StringComparison.OrdinalIgnoreCase))
+        {   Console.WriteLine($"'{ipath}':bad filename.");
             return FAILURE;
-        }
+        } 
         if(argc == 1)
-            opath = ipath;
+            tpath = ipath;
         else
-            opath = argv[1];
-        parsepath(opath, out idx_name, out idx_ext);
-        if(idx_ext >= opath.Length) opath = opath.Substring(0, idx_ext) + ".exe";
-        if(backup_ext.Equals(opath + idx_ext, StringComparison.OrdinalIgnoreCase))
-        {
-            Console.WriteLine($"'{opath}':bad filename.");
-            ofname = null;
+            tpath = argv[1];
+        parsepath(tpath, out idx_name, out idx_ext);
+        ofname = tpath.Substring(idx_name);               // <base>.<ext>
+        ofdir = tpath.Substring(0, idx_name);            // <dir>
+        if(idx_ext >= tpath.Length) {ofname += ".exe";}  //add .exe if no extention
+        else if(backup_ext.Equals(tpath + idx_ext, StringComparison.OrdinalIgnoreCase)) 
+        {   Console.WriteLine($"'{tpath}':bad filename.");
             return FAILURE;
         }
-        ofname = opath.Substring(idx_name);
-        opath = opath.Substring(0, idx_name) + tmpfname;
+        
         return SUCCESS;
     }
 
 
-    static int fnamechg(string ipath, string opath, string ofname, bool rename_sw)
+    static int fnamechg(string ipath, string ofdir, string ofname, bool rename_sw)
     {
-        int idx_name, idx_ext;
+        int idx_name, idx_ext;      // <-- parsepath
         string tpath;
 
         if(rename_sw)
         {
-            tpath = ipath;
+            tpath = ipath; //tpath = ipath
             parsepath(tpath, out idx_name, out idx_ext);
-            tpath = tpath.Substring(0, idx_ext) + backup_ext;
+            tpath = tpath.Substring(0, idx_ext) + backup_ext; // tpath = <dir>\<name>.olz
+            //backup ifile and make ipath available
             File.Delete(tpath);
             try
             {
@@ -139,25 +147,24 @@ static class Program
             } catch
             {
                 Console.WriteLine($"can't make '{tpath}'.");
-                File.Delete(opath);
+                File.Delete(tmpfpath);
                 return FAILURE;
             }
             Console.WriteLine($"'{ipath}' is renamed to '{tpath}'.");
         }
-        tpath = opath;
-        parsepath(tpath, out idx_name, out idx_ext);
-        tpath = tpath.Substring(0, idx_name) + ofname;
+        tpath = ofdir + ofname; //tpath = <dir>\$tmpfil$.exe
+        // move ofile to tmpfname
         File.Delete(tpath);
         try
         {
-            File.Move(opath, tpath);
+            File.Move(tmpfpath, tpath);
         } catch
         {
             if(rename_sw)
-            {
-                tpath = ipath;
+            {   //return ifile to its place
+                tpath = ipath; //tpath = ipath
                 parsepath(tpath, out idx_name, out idx_ext);
-                tpath = tpath.Substring(0, idx_ext) + backup_ext;
+                tpath = tpath.Substring(0, idx_ext) + backup_ext; //tpath = <dir>\<name>.olz
                 File.Move(tpath, ipath);
             }
             Console.WriteLine($"can't make '{tpath}'.  unpacked file '{tmpfname}' is remained.");
@@ -261,9 +268,10 @@ static class Program
             return FAILURE;
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
         if((ihead[0] != 0x5a4d && ihead[0] != 0x4d5a) ||
-           ihead[0x0d] != 0 || ihead[0x0c] != 0x1c)
+           ihead[0x0d] != 0 || ihead[0x0c] != 0x1c)  //0xd = e_ovno, 0xc = e_lfarlc
             return FAILURE;
         entry = ((long)(ihead[4] + ihead[0x0b]) << 4) + ihead[0x0a];
+        /*entry = (e_cparhdr + e_cs) : e_ip*/
         ifile.Position = entry;
         if(ifile.Read(sigbuf, 0, sigbuf.Length) != sigbuf.Length)
             return FAILURE;
@@ -287,8 +295,9 @@ static class Program
         int i;
 
         fpos = (long)(ihead[0x0b] + ihead[4]) << 4;		/* goto CS:0000 */
+        /* fpos = e_cs + e_cparthdr */
         ifile.BaseStream.Position = fpos;
-        ifile.Read(inf_buffer, 0, inf_buffer.Length);
+        ifile.Read(inf_buffer, 0, inf_buffer.Length); //lz header
         ohead[0x0a] = inf[0]; 	/* IP */
         ohead[0x0b] = inf[1]; 	/* CS */
         ohead[0x08] = inf[2]; 	/* SP */
@@ -385,7 +394,7 @@ static class Program
     }
 
     /*---------------------*/
-    struct bitstream
+    struct Bitstream
     {
         public BinaryReader fp;
         public ushort buf;
@@ -401,7 +410,7 @@ static class Program
         int len;
         ushort span;
         long fpos;
-        var bits = default(bitstream);
+        var bits = default(Bitstream);
         int p = 0;
 
         fpos = ((long)ihead[0x0b] - (long)inf[4] + (long)ihead[4]) << 4;
@@ -480,14 +489,14 @@ static class Program
     /*-------------------------------------------*/
 
     /* get compress information bit by bit */
-    static void initbits(ref bitstream p, BinaryReader filep)
+    static void initbits(ref Bitstream p, BinaryReader filep)
     {
         p.fp = filep;
         p.count = 0x10;
         p.buf = p.fp.ReadUInt16();
     }
 
-    static int getbit(ref bitstream p)
+    static int getbit(ref Bitstream p)
     {
         int b;
         b = p.buf & 1;
