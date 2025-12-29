@@ -128,8 +128,8 @@ static class Program
 
     static int fnamechg(string ipath, string ofdir, string ofname, bool rename_sw)
     {
-        if(rename_sw)
-        {   //backup ifile and make ipath available
+        if(rename_sw && !backup_ext.Equals(ifext, StringComparison.OrdinalIgnoreCase))
+        {   
             File.Delete(bkpath);
             try
             {
@@ -142,7 +142,10 @@ static class Program
             }
             Console.WriteLine($"'{ipath}' is renamed to '{bkpath}'.");
         }
-        File.Delete(opath);
+        if (!tmpfname.Equals(ofname, StringComparison.OrdinalIgnoreCase))
+        {   
+            File.Delete(opath);
+        }
         try
         {
             File.Move(tmpfpath, opath);
