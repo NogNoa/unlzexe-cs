@@ -12,10 +12,11 @@ static class Program
 
     static string tmpfname = "$tmpfil$.exe";
     static string backup_ext = ".olz";
-    static string? ifname, ifext      //ipath argv[0] an LZEXE file.
+    static string? ifname, ifext,      //ipath argv[0] an LZEXE file.
                    ofdir, ofname;  //opath from argv[1] else =ipath 
-                                  // <-- fnamechk
-    static string ipath {get=>ifname + ifext}
+                                   // <-- fnamechk
+    static string ipath { get => ifname + ifext; }
+    static string bkpath { get => ifname + backup_ext; }
     static string opath {get=>ofdir + ofname;}
     static string tmpfpath {get=>ofdir + tmpfname;}
 
@@ -99,14 +100,14 @@ static class Program
         int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
         string opath;
-        ipath = argv[0];
+        string ipath = argv[0];
         ofdir = "";
         ofname = "";
         parsepath(ipath, out idx_name, out idx_ext);
         ifname = ipath.Substring(0, idx_ext);
         ifext = (idx_ext < ipath.Length) ? ipath.Substring(idx_ext) : ".exe"; //add .exe if no extention
-        ipath = this.ipath;
-        if(tmpfpath.Equals(ipath, StringComparison.OrdinalIgnoreCase))
+        ipath = Program.ipath;
+        if(tmpfname.Equals(ipath + idx_name, StringComparison.OrdinalIgnoreCase))
         {   Console.WriteLine($"'{ipath}':bad filename.");
             return FAILURE;
         } 
@@ -125,46 +126,36 @@ static class Program
         return SUCCESS;
     }
 
-
     static int fnamechg(string ipath, string ofdir, string ofname, bool rename_sw)
     {
-        int idx_name, idx_ext;      // <-- parsepath
-        string tpath;
-
         if(rename_sw)
-        {
-            tpath = ifname + backup_ext; // tpath = <dir>\<name>.olz
-            //backup ifile and make ipath available
-            File.Delete(tpath);
+        {   //backup ifile and make ipath available
+            File.Delete(bkpath);
             try
             {
-                File.Move(ipath, tpath);
+                File.Move(ipath, bkpath);
             } catch
             {
-                Console.WriteLine($"can't make '{tpath}'.");
+                Console.WriteLine($"can't make '{bkpath}'.");
                 File.Delete(tmpfpath);
                 return FAILURE;
             }
-            Console.WriteLine($"'{ipath}' is renamed to '{tpath}'.");
+            Console.WriteLine($"'{ipath}' is renamed to '{bkpath}'.");
         }
-        tpath = ofdir + ofname; //tpath = <dir>\$tmpfil$.exe
-        // move ofile to tmpfname
-        File.Delete(tpath);
+        File.Delete(opath);
         try
         {
-            File.Move(tmpfpath, tpath);
+            File.Move(tmpfpath, opath);
         } catch
         {
             if(rename_sw)
             {   //return ifile to its place
-                tpath = ifname + backup_ext; //tpath = <dir>\<name>.olz
-                File.Move(tpath, ipath);
+                File.Move(bkpath, ipath);
             }
-            Console.WriteLine($"can't make '{tpath}'.  unpacked file '{tmpfname}' is remained.");
-
+            Console.WriteLine($"can't make '{opath}'.  unpacked file '{tmpfname}' is remained.");
             return FAILURE;
         }
-        Console.WriteLine($"unpacked file '{tpath}' is generated.");
+        Console.WriteLine($"unpacked file '{opath}' is generated.");
         return SUCCESS;
     }
 
