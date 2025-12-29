@@ -12,12 +12,10 @@ static class Program
 
     static string tmpfname = "$tmpfil$.exe";
     static string backup_ext = ".olz";
-    static string? ipath,             // argv[0] an LZEXE file.
-                                     // path of ifile 
-                    //opath from argv[1] else =ipath 
-         ofdir,    // directory of ofile
-         ofname;  // new base.ext
-                                     // <-- fnamechk
+    static string? ifname, ifext      //ipath argv[0] an LZEXE file.
+                   ofdir, ofname;  //opath from argv[1] else =ipath 
+                                  // <-- fnamechk
+    static string ipath {get=>ifname + ifext}
     static string opath {get=>ofdir + ofname;}
     static string tmpfpath {get=>ofdir + tmpfname;}
 
@@ -37,7 +35,7 @@ static class Program
         }
         if(argc == 1)
             rename_sw = true;
-        if(fnamechk(out ipath, out ofdir, out ofname, argc, argv) != SUCCESS)
+        if(fnamechk(out ifname, out ifext, out ofdir, out ofname, argc, argv) != SUCCESS)
         {
             return EXIT_FAILURE;
         }
@@ -95,36 +93,35 @@ static class Program
     }
 
     /* file name check */
-    static int fnamechk(out string ipath, out string ofdir, out string ofname,
+    static int fnamechk(out string ifname, out string ifext, out string ofdir, out string ofname,
                   int argc, string[] argv)
     {
         int idx_name, idx_ext;   // seperation points of directory, basename and extention
                                  // <-- parsepath
-        string tpath;
-        string ifname;
+        string opath;
         ipath = argv[0];
         ofdir = "";
         ofname = "";
         parsepath(ipath, out idx_name, out idx_ext);
-        ifname = ipath.Substring(0, idx_ext)
-        if(idx_ext >= ipath.Length) ipath = ifname + ".exe"; //add .exe if no extention
-        if(tmpfname.Equals(ifname, StringComparison.OrdinalIgnoreCase))
+        ifname = ipath.Substring(0, idx_ext);
+        ifext = (idx_ext < ipath.Length) ? ipath.Substring(idx_ext) : ".exe"; //add .exe if no extention
+        ipath = this.ipath;
+        if(tmpfpath.Equals(ipath, StringComparison.OrdinalIgnoreCase))
         {   Console.WriteLine($"'{ipath}':bad filename.");
             return FAILURE;
         } 
         if(argc == 1)
-            tpath = ipath;
+            opath = ipath;
         else
-            tpath = argv[1];
-        parsepath(tpath, out idx_name, out idx_ext);
-        ofname = tpath.Substring(idx_name);               // <base>.<ext>
-        ofdir = tpath.Substring(0, idx_name);            // <dir>
-        if(idx_ext >= tpath.Length) {ofname += ".exe";}  //add .exe if no extention
-        else if(backup_ext.Equals(tpath + idx_ext, StringComparison.OrdinalIgnoreCase)) 
-        {   Console.WriteLine($"'{tpath}':bad filename.");
+            opath = argv[1];
+        parsepath(opath, out idx_name, out idx_ext);
+        ofname = opath.Substring(idx_name);               // <base>.<ext>
+        ofdir = opath.Substring(0, idx_name);            // <dir>
+        if(idx_ext >= opath.Length) {ofname += ".exe";}  //add .exe if no extention
+        else if(backup_ext.Equals(opath + idx_ext, StringComparison.OrdinalIgnoreCase)) 
+        {   Console.WriteLine($"'{opath}':bad filename.");
             return FAILURE;
         }
-        
         return SUCCESS;
     }
 
@@ -136,9 +133,7 @@ static class Program
 
         if(rename_sw)
         {
-            tpath = ipath; //tpath = ipath
-            parsepath(tpath, out idx_name, out idx_ext);
-            tpath = tpath.Substring(0, idx_ext) + backup_ext; // tpath = <dir>\<name>.olz
+            tpath = ifname + backup_ext; // tpath = <dir>\<name>.olz
             //backup ifile and make ipath available
             File.Delete(tpath);
             try
@@ -162,9 +157,7 @@ static class Program
         {
             if(rename_sw)
             {   //return ifile to its place
-                tpath = ipath; //tpath = ipath
-                parsepath(tpath, out idx_name, out idx_ext);
-                tpath = tpath.Substring(0, idx_ext) + backup_ext; //tpath = <dir>\<name>.olz
+                tpath = ifname + backup_ext; //tpath = <dir>\<name>.olz
                 File.Move(tpath, ipath);
             }
             Console.WriteLine($"can't make '{tpath}'.  unpacked file '{tmpfname}' is remained.");
