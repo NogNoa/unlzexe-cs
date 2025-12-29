@@ -169,6 +169,7 @@ static class Program
             switch(pathname[i])
             {
                 case ':':
+                case '/':
                 case '\\': fname = i + 1; break;
                 case '.': ext = i; break;
             }
