@@ -12,8 +12,8 @@ static class Program
 
     static string tmpfname = "$tmpfil$.exe";
     static string backup_ext = ".olz";
-    static string? ifname, ifext,      //ipath argv[0] an LZEXE file.
-                   ofdir, ofname;  //opath from argv[1] else =ipath 
+    static string? ifname, ifext,    //ipath argv[0] an LZEXE file.
+                   ofdir, ofname;   //opath from argv[1] else =ipath 
                                    // <-- fnamechk
     static string ipath { get => ifname + ifext; }
     static string bkpath { get => ifname + backup_ext; }
@@ -25,8 +25,9 @@ static class Program
         var argc = argv.Length;
         Stream ifile, ofile;  // <-- File.Open
         int ver;  // <-- rdhead
-        bool rename_sw = false;  //user-defined names for ipath and possibly opath
-                                 // = (argc == 1)
+        bool rename_sw = (argc == 1);
+            //  true: ifile moved to bkpath, ofile takes ipath
+           // false: ofile takes user provided path, ifile stays in place
 
         Console.WriteLine("UNLZEXE Ver. 0.6");
         if(argc != 2 && argc != 1)
@@ -34,8 +35,6 @@ static class Program
             Console.WriteLine("usage: UNLZEXE packedfile [unpackedfile]");
             return EXIT_FAILURE;
         }
-        if(argc == 1)
-            rename_sw = true;
         if(fnamechk(out ifname, out ifext, out ofdir, out ofname, argc, argv) != SUCCESS)
         {
             return EXIT_FAILURE;
