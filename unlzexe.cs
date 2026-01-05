@@ -179,9 +179,31 @@ static class Program
         if(ext <= fname) ext = i;
     }
 
+    static Dictionary<string,ushort> MZ(byte[] buffer)
+    {
+        Span<ushort> head = MemoryMarshal.Cast<byte, ushort>(buffer.AsSpan());
+        return new Dictionary<string, ushort>
+        {
+            { "magic", head[0] },
+            { "cblp", head[1] },
+            { "cp", head[2] },
+            { "crlc", head[3] },
+            { "cparhdr", head[4] },
+            { "minalloc", head[5] },
+            { "maxalloc", head[6] },
+            { "ss", head[7] },
+            { "sp", head[8] },
+            { "csum", head[9] },
+            { "ip", head[0xa] },
+            { "cs", head[0xb] },
+            { "lfarlc", head[0xc] },
+            { "ovno", head[0xd] }
+        };
+    }
+
     static byte[] ihead_buffer = new byte[0x10 * sizeof(ushort)], ohead_buffer = new byte[0x10 * sizeof(ushort)], inf_buffer = new byte[8 * sizeof(ushort)];
-    static Span<ushort> ihead => MemoryMarshal.Cast<byte, ushort>(ihead_buffer.AsSpan());
-    static Span<ushort> ohead => MemoryMarshal.Cast<byte, ushort>(ohead_buffer.AsSpan());
+    static Dictionary<string, ushort> ihead => MZ(ihead_buffer);
+    static Dictionary<string, ushort> ohead => MZ(ohead_buffer);
     static Span<ushort> inf => MemoryMarshal.Cast<byte, ushort>(inf_buffer.AsSpan());
     static long loadsize;
     static byte[] sig90 = {
@@ -254,13 +276,12 @@ static class Program
         if(ifile.Read(ihead_buffer, 0, ihead_buffer.Length) != ihead_buffer.Length)
             return FAILURE;
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
-        if((ihead[0] != 0x5a4d && ihead[0] != 0x4d5a) ||
-           ihead[0x0d] != 0 || ihead[0x0c] != 0x1c)  //0xd = e_ovno, 0xc = e_lfarlc
-            return FAILURE;
-        entry = ((long)(ihead[4] + ihead[0x0b]) << 4) + ihead[0x0a];
-        /*entry = (e_cparhdr + e_cs) : e_ip*/
+        if((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
+           ihead["ovno"] != 0 || ihead["lfarlc"] != 0x1c)  
+            return FAILURE;  //not a valid MZ EXE (with no overlay information)
+        entry = ((long)(ihead["cparhdr"] + ihead["cs"]) << 4) + ihead["ip"];
         ifile.Position = entry;
-        if(ifile.Read(sigbuf, 0, sigbuf.Length) != sigbuf.Length)
+        if(ifile.Read(sigbuf, 0, sigbuf.Length) != sigbuf.Length) // ifile.position = cs:(e_ip + 0xe8) 
             return FAILURE;
         if(Enumerable.SequenceEqual(sigbuf, sig90))
         {
@@ -281,19 +302,18 @@ static class Program
         long fpos;
         int i;
 
-        fpos = (long)(ihead[0x0b] + ihead[4]) << 4;		/* goto CS:0000 */
-        /* fpos = e_cs + e_cparthdr */
+        fpos = (long)(ihead["cs"] + ihead["cparhdr"]) << 4;		/* goto CS:0000 */
         ifile.BaseStream.Position = fpos;
         ifile.Read(inf_buffer, 0, inf_buffer.Length); //lz header
-        ohead[0x0a] = inf[0]; 	/* IP */
-        ohead[0x0b] = inf[1]; 	/* CS */
-        ohead[0x08] = inf[2]; 	/* SP */
-        ohead[0x07] = inf[3]; 	/* SS */
+        ohead["ip"] = inf[0];
+        ohead["cs"] = inf[1];
+        ohead["sp"] = inf[2];
+        ohead["ss"] = inf[3];
         /* inf[4]:size of compressed load module (PARAGRAPH)*/
         /* inf[5]:increase of load module size (PARAGRAPH)*/
         /* inf[6]:size of decompressor with  compressed relocation table (BYTE) */
         /* inf[7]:check sum of decompresser with compressd relocation table(Ver.0.90) */
-        ohead[0x0c] = 0x1c;		/* start position of relocation table */
+        ohead["lfarlc"] = 0x1c;		/* start position of relocation table */
         ofile.BaseStream.Position = 0x1cL;
         switch(ver)
         {
@@ -312,7 +332,7 @@ static class Program
         }
         fpos = ofile.BaseStream.Position;
         i = (0x200 - (int)fpos) & 0x1ff;
-        ohead[4] = unchecked((ushort)(int)((fpos + i) >> 4));
+        ohead["cparhdr"] = unchecked((ushort)(int)((fpos + i) >> 4));  //e_cpardhdr
 
         for(; i > 0; i--)
             ofile.Write((byte)0);
@@ -325,7 +345,7 @@ static class Program
         ushort rel_count = 0;
         ushort rel_seg, rel_off;
 
-        ifile.BaseStream.Position = fpos + 0x19d;
+        ifile.BaseStream.Position = fpos + 0x19d;  // cs:019d after functions
         /* 0x19d=compressed relocation table address */
         rel_seg = 0;
         do
@@ -341,7 +361,7 @@ static class Program
             }
             rel_seg += 0x1000;
         } while(rel_seg != 0);
-        ohead[3] = rel_count;
+        ohead["crlc"] = rel_count;
         return (SUCCESS);
     }
     /* for LZEXE ver 0.91*/
@@ -351,7 +371,7 @@ static class Program
         ushort rel_count = 0;
         ushort rel_seg, rel_off;
 
-        ifile.BaseStream.Position = fpos + 0x158;
+        ifile.BaseStream.Position = fpos + 0x158; // cs:0158 after functions
         /* 0x158=compressed relocation table address */
         rel_off = 0; rel_seg = 0;
         for(; ; )
@@ -376,7 +396,7 @@ static class Program
             ofile.Write(rel_seg);
             rel_count++;
         }
-        ohead[3] = rel_count;
+        ohead["crlc"] = rel_count;
         return (SUCCESS);
     }
 
@@ -400,9 +420,9 @@ static class Program
         var bits = default(Bitstream);
         int p = 0;
 
-        fpos = ((long)ihead[0x0b] - (long)inf[4] + (long)ihead[4]) << 4;
+        fpos = ((long)ihead["cs"] - (long)inf[4] + (long)ihead["cparhdr"]) << 4; //cs+comp_prog_pars:0
         ifile.BaseStream.Position = fpos;
-        fpos = (long)ohead[4] << 4;
+        fpos = (long)ohead["cparhdr"] << 4;
         ofile.BaseStream.Position = fpos;
         initbits(ref bits, ifile);
         Console.WriteLine(" unpacking. ");
@@ -460,14 +480,14 @@ static class Program
     /* write EXE header*/
     static void wrhead(BinaryWriter ofile)
     {
-        if(ihead[6] != 0)
+        if(ihead["maxalloc"] != 0)
         {
-            ohead[5] -= unchecked((ushort)(inf[5] + ((inf[6] + 16 - 1) >> 4) + 9));
-            if(ihead[6] != 0xffff)
-                ohead[6] -= unchecked((ushort)(ihead[5] - ohead[5]));
+            ohead["minalloc"] -= unchecked((ushort)(inf[5] + ((inf[6] + 16 - 1) >> 4) + 9));
+            if(ihead["maxalloc"] != 0xffff)
+                ohead["maxalloc"] -= unchecked((ushort)(ihead["maxalloc"] - ohead["maxalloc"]));
         }
-        ohead[1] = unchecked((ushort)(((ushort)loadsize + (ohead[4] << 4)) & 0x1ff));
-        ohead[2] = (ushort)((loadsize + ((long)ohead[4] << 4) + 0x1ff) >> 9);
+        ohead["cblp"] = unchecked((ushort)(((ushort)loadsize + (ohead["cparhdr"] << 4)) & 0x1ff));
+        ohead["cp"] = (ushort)((loadsize + ((long)ohead["cparhdr"] << 4) + 0x1ff) >> 9);
         ofile.BaseStream.Position = 0;
         ofile.Write(ohead_buffer, 0, 0x0e * sizeof(ushort));
     }
