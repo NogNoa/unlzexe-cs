@@ -7,4 +7,4 @@ Properties/
 *.csproj
 *.sln
 
-rename_sw.txt
+*.dcmnt

@@ -286,7 +286,7 @@ static class Program
         ihead = HeaderInit(ihead_buffer, MZtemplate);
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
         ohead = HeaderInit(ohead_buffer, MZtemplate);
-        if ((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
+        if ((ihead["magic"] != 0x5a4d && ihead["magic"] != 0x4d5a) ||
            ihead["ovno"] != 0 || ihead["lfarlc"] != 0x1c)  
             return FAILURE;  //not a valid MZ EXE (with no overlay information)
         entry = ((long)(ihead["cparhdr"] + ihead["cs"]) << 4) + ihead["ip"];
@@ -342,9 +342,9 @@ static class Program
             Console.WriteLine("error at relocation table.");
             return (FAILURE);
         }
-        fpos = ofile.BaseStream.Position;
-        i = (0x200 - (int)fpos) & 0x1ff;
-        ohead["cparhdr"] = unchecked((ushort)(int)((fpos + i) >> 4));  //e_cpardhdr
+        fpos = ofile.BaseStream.Position; //0x1cL + 4*ohead["crlc"] (2 words per relocation)
+        i = (0x200 - (int)fpos) & 0x1ff;  //complement to a disk sector
+        ohead["cparhdr"] = unchecked((ushort)(int)((fpos + i) >> 4));
 
         for(; i > 0; i--)
             ofile.Write((byte)0);
@@ -432,9 +432,9 @@ static class Program
         var bits = default(Bitstream);
         int p = 0;
 
-        fpos = ((long)ihead["cs"] - (long)inf["loadsize"] + (long)ihead["cparhdr"]) << 4; //cs+comp_prog_pars:0
+        fpos = ((long)ihead["cs"] - (long)inf["loadsize"] + (long)ihead["cparhdr"]) << 4; //(cs-loadsize):0
         ifile.BaseStream.Position = fpos;
-        fpos = (long)ohead["cparhdr"] << 4;
+        fpos = (long)ohead["cparhdr"] << 4;  //after the padded header
         ofile.BaseStream.Position = fpos;
         initbits(ref bits, ifile);
         Console.WriteLine(" unpacking. ");
@@ -498,7 +498,7 @@ static class Program
         }
         ohead["cblp"] = unchecked((ushort)(((ushort)loadsize + (ohead["cparhdr"] << 4)) & 0x1ff));
         ohead["cp"] = (ushort)((loadsize + ((long)ohead["cparhdr"] << 4) + 0x1ff) >> 9);
-        ohead_buffer = HeaderUnload(ohead, MZtemplate);
+        byte[] ohead_buffer = HeaderUnload(ohead, MZtemplate);
         ofile.BaseStream.Position = 0;
         ofile.Write(ohead_buffer, 0, 0x0e * sizeof(ushort));
     }
