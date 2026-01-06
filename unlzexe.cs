@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -178,49 +179,38 @@ static class Program
         }
         if(ext <= fname) ext = i;
     }
+    static string[] MZtemplate = ["magic", "cblp", "cp", "crlc", "cparhdr", "minalloc", "maxalloc", "ss", "sp", "csum", "ip", "cs", "lfarlc", "ovno"];
+    static string[] LZtemplate = ["ip", "cs", "sp", "ss", "loadsize", "incsize", "csize", "crcchk"];
 
-    static Dictionary<string,ushort> MZHeader(byte[] buffer)
+    static Dictionary<string,ushort> HeaderInit(byte[] buffer, string[] template)
     {
+        Debug.Assert(buffer.Length == template.Length);
+
         Span<ushort> head = MemoryMarshal.Cast<byte, ushort>(buffer.AsSpan());
-        return new Dictionary<string, ushort>
+        Dictionary<string, ushort> back = new();
+        for(int i=0;i<template.Length;i++)
         {
-            { "magic", head[0] },
-            { "cblp", head[1] },
-            { "cp", head[2] },
-            { "crlc", head[3] },
-            { "cparhdr", head[4] },
-            { "minalloc", head[5] },
-            { "maxalloc", head[6] },
-            { "ss", head[7] },
-            { "sp", head[8] },
-            { "csum", head[9] },
-            { "ip", head[0xa] },
-            { "cs", head[0xb] },
-            { "lfarlc", head[0xc] },
-            { "ovno", head[0xd] }
-        };
-    }
-    static Dictionary<string, ushort> LZHeader(byte[] buffer)
-    {
-        Span<ushort> head = MemoryMarshal.Cast<byte, ushort>(buffer.AsSpan());
-        return new Dictionary<string, ushort>
-        {
-            { "ip", head[0] },
-            { "cs", head[1] },
-            { "sp", head[2] },
-            { "ss", head[3] },
-            { "loadsize", head[4] },
-            { "incsize", head[5] },
-            { "csize", head[6] },
-            { "crcchk", head[7] }
-        };
+            back.Add(template[i], head[i]);
+        }
+        return back;
     }
 
+    static byte[] HeaderUnload(Dictionary<string, ushort> head, string[] template)
+    {
+        var buffer = (from name in template select head[name]).ToArray();
+        List<byte> back = new();
+        for (int i = 0; i < template.Length; i++)
+        {
+            back.Add((byte)buffer[i*2]);
+            back.Add((byte)(buffer[i*2] >> 8));
+        }
+        return back.ToArray();
+    }
 
     static byte[] ohead_buffer = new byte[0x10 * sizeof(ushort)];
-    static Dictionary<string, ushort> ihead = MZHeader(new byte[0xe]);
-    static Dictionary<string, ushort> ohead = MZHeader(ohead_buffer);
-    static Dictionary<string, ushort> inf = LZHeader(new byte[8]);
+    static Dictionary<string, ushort> ihead = new();
+    static Dictionary<string, ushort> ohead = HeaderInit(ohead_buffer, MZtemplate);
+    static Dictionary<string, ushort> inf = new();
     static long loadsize;
     static byte[] sig90 = {
         0x06, 0x0E, 0x1F, 0x8B, 0x0E, 0x0C, 0x00, 0x8B,
@@ -293,7 +283,7 @@ static class Program
         ver = 0;
         if(ifile.Read(ihead_buffer, 0, ihead_buffer.Length) != ihead_buffer.Length)
             return FAILURE;
-        ihead = MZHeader(ihead_buffer);
+        ihead = HeaderInit(ihead_buffer, MZtemplate);
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
         if((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
            ihead["ovno"] != 0 || ihead["lfarlc"] != 0x1c)  
@@ -325,7 +315,7 @@ static class Program
         fpos = (long)(ihead["cs"] + ihead["cparhdr"]) << 4;		/* goto CS:0000 */
         ifile.BaseStream.Position = fpos;
         ifile.Read(inf_buffer, 0, inf_buffer.Length); //lz header
-        inf = LZHeader(inf_buffer);
+        inf = HeaderInit(inf_buffer, LZtemplate);
         ohead["ip"] = inf["ip"];
         ohead["cs"] = inf["cs"];
         ohead["sp"] = inf["sp"];
@@ -507,6 +497,7 @@ static class Program
         }
         ohead["cblp"] = unchecked((ushort)(((ushort)loadsize + (ohead["cparhdr"] << 4)) & 0x1ff));
         ohead["cp"] = (ushort)((loadsize + ((long)ohead["cparhdr"] << 4) + 0x1ff) >> 9);
+        ohead_buffer = HeaderUnload(ohead, MZtemplate);
         ofile.BaseStream.Position = 0;
         ofile.Write(ohead_buffer, 0, 0x0e * sizeof(ushort));
     }
