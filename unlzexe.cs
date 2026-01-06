@@ -198,18 +198,17 @@ static class Program
     static byte[] HeaderUnload(Dictionary<string, ushort> head, string[] template)
     {
         var buffer = (from name in template select head[name]).ToArray();
-        List<byte> back = new();
+        byte[] back = new byte[template.Length * sizeof(ushort)];
         for (int i = 0; i < template.Length; i++)
         {
-            back.Add((byte)buffer[i*2]);
-            back.Add((byte)(buffer[i*2] >> 8));
+            back[i] = ((byte)buffer[i*2]);
+            back[i+1] = ((byte)(buffer[i*2] >> 8));
         }
-        return back.ToArray();
+        return back;
     }
 
-    static byte[] ohead_buffer = new byte[0x10 * sizeof(ushort)];
     static Dictionary<string, ushort> ihead = new();
-    static Dictionary<string, ushort> ohead = HeaderInit(ohead_buffer, MZtemplate);
+    static Dictionary<string, ushort> ohead = new();
     static Dictionary<string, ushort> inf = new();
     static long loadsize;
     static byte[] sig90 = {
@@ -278,14 +277,16 @@ static class Program
     static int rdhead(Stream ifile, out int ver)
     {
         long entry;
-        byte[]  ihead_buffer = new byte[0x10 * sizeof(ushort)];
-       
+        byte[]  ihead_buffer = new byte[0x10 * sizeof(ushort)], 
+                ohead_buffer = new byte[0x10 * sizeof(ushort)];
+
         ver = 0;
         if(ifile.Read(ihead_buffer, 0, ihead_buffer.Length) != ihead_buffer.Length)
             return FAILURE;
         ihead = HeaderInit(ihead_buffer, MZtemplate);
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
-        if((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
+        ohead = HeaderInit(ohead_buffer, MZtemplate);
+        if ((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
            ihead["ovno"] != 0 || ihead["lfarlc"] != 0x1c)  
             return FAILURE;  //not a valid MZ EXE (with no overlay information)
         entry = ((long)(ihead["cparhdr"] + ihead["cs"]) << 4) + ihead["ip"];
