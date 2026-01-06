@@ -179,7 +179,7 @@ static class Program
         if(ext <= fname) ext = i;
     }
 
-    static Dictionary<string,ushort> MZ(byte[] buffer)
+    static Dictionary<string,ushort> MZHeader(byte[] buffer)
     {
         Span<ushort> head = MemoryMarshal.Cast<byte, ushort>(buffer.AsSpan());
         return new Dictionary<string, ushort>
@@ -200,11 +200,27 @@ static class Program
             { "ovno", head[0xd] }
         };
     }
+    static Dictionary<string, ushort> LZHeader(byte[] buffer)
+    {
+        Span<ushort> head = MemoryMarshal.Cast<byte, ushort>(buffer.AsSpan());
+        return new Dictionary<string, ushort>
+        {
+            { "ip", head[0] },
+            { "cs", head[1] },
+            { "sp", head[2] },
+            { "ss", head[3] },
+            { "loadsize", head[4] },
+            { "incsize", head[5] },
+            { "csize", head[6] },
+            { "crcchk", head[7] }
+        };
+    }
 
-    static byte[] ihead_buffer = new byte[0x10 * sizeof(ushort)], ohead_buffer = new byte[0x10 * sizeof(ushort)], inf_buffer = new byte[8 * sizeof(ushort)];
-    static Dictionary<string, ushort> ihead => MZ(ihead_buffer);
-    static Dictionary<string, ushort> ohead => MZ(ohead_buffer);
-    static Span<ushort> inf => MemoryMarshal.Cast<byte, ushort>(inf_buffer.AsSpan());
+
+    static byte[] ohead_buffer = new byte[0x10 * sizeof(ushort)];
+    static Dictionary<string, ushort> ihead = MZHeader(new byte[0xe]);
+    static Dictionary<string, ushort> ohead = MZHeader(ohead_buffer);
+    static Dictionary<string, ushort> inf = LZHeader(new byte[8]);
     static long loadsize;
     static byte[] sig90 = {
         0x06, 0x0E, 0x1F, 0x8B, 0x0E, 0x0C, 0x00, 0x8B,
@@ -272,9 +288,12 @@ static class Program
     static int rdhead(Stream ifile, out int ver)
     {
         long entry;
+        byte[]  ihead_buffer = new byte[0x10 * sizeof(ushort)];
+       
         ver = 0;
         if(ifile.Read(ihead_buffer, 0, ihead_buffer.Length) != ihead_buffer.Length)
             return FAILURE;
+        ihead = MZHeader(ihead_buffer);
         Array.Copy(ihead_buffer, ohead_buffer, ohead_buffer.Length);
         if((ihead["mz"] != 0x5a4d && ihead["mz"] != 0x4d5a) ||
            ihead["ovno"] != 0 || ihead["lfarlc"] != 0x1c)  
@@ -301,14 +320,16 @@ static class Program
     {
         long fpos;
         int i;
+        byte[] inf_buffer = new byte[8 * sizeof(ushort)];
 
         fpos = (long)(ihead["cs"] + ihead["cparhdr"]) << 4;		/* goto CS:0000 */
         ifile.BaseStream.Position = fpos;
         ifile.Read(inf_buffer, 0, inf_buffer.Length); //lz header
-        ohead["ip"] = inf[0];
-        ohead["cs"] = inf[1];
-        ohead["sp"] = inf[2];
-        ohead["ss"] = inf[3];
+        inf = LZHeader(inf_buffer);
+        ohead["ip"] = inf["ip"];
+        ohead["cs"] = inf["cs"];
+        ohead["sp"] = inf["sp"];
+        ohead["ss"] = inf["ss"];
         /* inf[4]:size of compressed load module (PARAGRAPH)*/
         /* inf[5]:increase of load module size (PARAGRAPH)*/
         /* inf[6]:size of decompressor with  compressed relocation table (BYTE) */
@@ -420,7 +441,7 @@ static class Program
         var bits = default(Bitstream);
         int p = 0;
 
-        fpos = ((long)ihead["cs"] - (long)inf[4] + (long)ihead["cparhdr"]) << 4; //cs+comp_prog_pars:0
+        fpos = ((long)ihead["cs"] - (long)inf["loadsize"] + (long)ihead["cparhdr"]) << 4; //cs+comp_prog_pars:0
         ifile.BaseStream.Position = fpos;
         fpos = (long)ohead["cparhdr"] << 4;
         ofile.BaseStream.Position = fpos;
@@ -455,10 +476,8 @@ static class Program
                 if(len == 2)
                 {
                     len = (byte)ifile.ReadByte();
-
                     if(len == 0)
                         break;    /* end mark of compreesed load module */
-
                     if(len == 1)
                         continue; /* segment change */
                     else
@@ -482,7 +501,7 @@ static class Program
     {
         if(ihead["maxalloc"] != 0)
         {
-            ohead["minalloc"] -= unchecked((ushort)(inf[5] + ((inf[6] + 16 - 1) >> 4) + 9));
+            ohead["minalloc"] -= unchecked((ushort)(inf["incsize"] + ((inf["csize"] + 0xf) >> 4) + 9));
             if(ihead["maxalloc"] != 0xffff)
                 ohead["maxalloc"] -= unchecked((ushort)(ihead["maxalloc"] - ohead["maxalloc"]));
         }
